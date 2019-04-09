@@ -6,6 +6,11 @@
 from .normalizer import *
 import argparse
 import torch
+import torch.nn as nn
+from typing import Callable
+
+FnModule = Callable[[], nn.Module]
+FnOptim = Callable[[], torch.optim.Optimizer]
 
 
 class Config:
@@ -14,12 +19,12 @@ class Config:
     def __init__(self):
         self.parser = argparse.ArgumentParser()
         self.task_fn = None
-        self.optimizer_fn = None
-        self.actor_optimizer_fn = None
-        self.critic_optimizer_fn = None
-        self.network_fn = None
-        self.actor_network_fn = None
-        self.critic_network_fn = None
+        self.optimizer_fn: FnOptim = None
+        self.actor_optimizer_fn: FnOptim = None
+        self.critic_optimizer_fn: FnOptim = None
+        self.network_fn: FnModule = None
+        self.actor_network_fn: FnModule = None
+        self.critic_network_fn: FnModule = None
         self.replay_fn = None
         self.random_process_fn = None
         self.discount = None
@@ -57,6 +62,12 @@ class Config:
         self.eval_interval = 0
         self.eval_episodes = 10
         self.async_actor = True
+
+        self.game = ""
+        self.warm_up = 0
+        self.policy_noise = 0.2
+        self.noise_clip = 0.5
+        self.policy_update_frequency = 2
 
     @property
     def eval_env(self):

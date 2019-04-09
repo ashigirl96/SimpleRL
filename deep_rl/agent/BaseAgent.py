@@ -7,14 +7,18 @@
 import torch
 import numpy as np
 from ..utils import *
+from ..component import *
 import torch.multiprocessing as mp
 from collections import deque
 
 
 class BaseAgent:
-    def __init__(self, config):
+    def __init__(self, config: Config):
         self.config = config
         self.logger = get_logger(tag=config.tag, log_level=config.log_level)
+        self.task = None  # type: Task
+        self.network = None  # type: nn.Module
+        self.total_steps = 0
 
     def close(self):
         close_obj(self.task)

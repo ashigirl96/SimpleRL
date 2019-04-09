@@ -6,6 +6,9 @@
 
 from .network_utils import *
 from .network_bodies import *
+from typing import Callable
+
+FnModule = Callable[[], nn.Module]
 
 
 class VanillaNet(nn.Module, BaseNet):
@@ -117,7 +120,7 @@ class DeterministicActorCriticNet(nn.Module, BaseNet):
         self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
         self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
         self.phi_params = list(self.phi_body.parameters())
-        
+
         self.actor_opt = actor_opt_fn(self.actor_params + self.phi_params)
         self.critic_opt = critic_opt_fn(self.critic_params + self.phi_params)
         self.to(Config.DEVICE)
@@ -136,6 +139,55 @@ class DeterministicActorCriticNet(nn.Module, BaseNet):
 
     def critic(self, phi, a):
         return self.fc_critic(self.critic_body(phi, a))
+
+
+class TwinDelayDeterministicActorCriticNet(nn.Module, BaseNet):
+    def __init__(self,
+                 state_dim,
+                 action_dim,
+                 actor_opt_fn,
+                 critic_opt_fn,
+                 phi_body=None,
+                 actor_body=None,
+                 critic_body_fn: FnModule = None):
+        super(TwinDelayDeterministicActorCriticNet, self).__init__()
+        if phi_body is None: phi_body = DummyBody(state_dim)
+        if actor_body is None: actor_body = DummyBody(phi_body.feature_dim)
+        if critic_body_fn is None: critic_body_fn = lambda: DummyBody(phi_body.feature_dim)
+        self.phi_body = phi_body
+        self.actor_body = actor_body
+        self.critic_body1 = critic_body_fn()
+        self.critic_body2 = critic_body_fn()
+        self.fc_action = layer_init(nn.Linear(actor_body.feature_dim, action_dim), 1e-3)
+        self.fc_critic1 = layer_init(nn.Linear(self.critic_body1.feature_dim, 1), 1e-3)
+        self.fc_critic2 = layer_init(nn.Linear(self.critic_body2.feature_dim, 1), 1e-3)
+
+        self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
+        self.critic_params1 = list(self.critic_body1.parameters()) + list(self.fc_critic1.parameters())
+        self.critic_params2 = list(self.critic_body2.parameters()) + list(self.fc_critic2.parameters())
+        self.phi_params = list(self.phi_body.parameters())
+
+        self.actor_opt = actor_opt_fn(self.actor_params + self.phi_params)
+        self.critic_opt = critic_opt_fn(self.critic_params1 + self.critic_params2 + self.phi_params)
+        self.to(Config.DEVICE)
+
+    def forward(self, obs):
+        phi = self.feature(obs)
+        action = self.actor(phi)
+        return action
+
+    def feature(self, obs):
+        obs = tensor(obs)
+        return self.phi_body(obs)
+
+    def actor(self, phi):
+        return F.tanh(self.fc_action(self.actor_body(phi)))
+
+    def critic1(self, phi, a):
+        return self.fc_critic1(self.critic_body1(phi, a))
+
+    def critic2(self, phi, a):
+        return self.fc_critic2(self.critic_body2(phi, a))
 
 
 class GaussianActorCriticNet(nn.Module, BaseNet):
@@ -158,7 +210,7 @@ class GaussianActorCriticNet(nn.Module, BaseNet):
         self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
         self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
         self.phi_params = list(self.phi_body.parameters())
-        
+
         self.std = nn.Parameter(torch.zeros(action_dim))
         self.to(Config.DEVICE)
 
@@ -201,7 +253,7 @@ class CategoricalActorCriticNet(nn.Module, BaseNet):
         self.actor_params = list(self.actor_body.parameters()) + list(self.fc_action.parameters())
         self.critic_params = list(self.critic_body.parameters()) + list(self.fc_critic.parameters())
         self.phi_params = list(self.phi_body.parameters())
-        
+
         self.to(Config.DEVICE)
 
     def forward(self, obs, action=None):

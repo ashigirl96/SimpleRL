@@ -68,6 +68,21 @@ class TwoLayerFCBodyWithAction(nn.Module):
         phi = self.gate(self.fc2(torch.cat([x, action], dim=1)))
         return phi
 
+class TD3TwoLayerFCBodyWithAction(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_units=(64, 64), gate=F.relu):
+        super(TD3TwoLayerFCBodyWithAction, self).__init__()
+        hidden_size1, hidden_size2 = hidden_units
+        self.fc1 = layer_init(nn.Linear(state_dim + action_dim, hidden_size1))
+        self.fc2 = layer_init(nn.Linear(hidden_size1, hidden_size2))
+        self.gate = gate
+        self.feature_dim = hidden_size2
+
+    def forward(self, x, action):
+        x = torch.cat([x, action], dim=1)
+        x = self.gate(self.fc1(x))
+        phi = self.gate(self.fc2(x))
+        return phi
+
 
 class OneLayerFCBodyWithAction(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_units, gate=F.relu):
